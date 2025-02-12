@@ -13,11 +13,29 @@
         file_put_contents('bancodedados.json', json_encode($tasks, JSON_PRETTY_PRINT));
     }
 
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('HTTP/1.1 405 Method Not Allowed');
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Método não permitido.'
+        ]);
+        exit;
+    }
+
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    $task_content = $data['task'] ??  '';
+    $task_content = $data['task'] ?? '';
     $task_fav = $data['favorited'] ?? false;
+
+    if (empty($task_content)) {
+        header('HTTP/1.1 400 Bad Request');
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'A tarefa não pode ser vazia.'
+        ]);
+        exit;
+    }
 
     $tasks = getTasks();
 
@@ -25,6 +43,7 @@
     foreach ($tasks as $t) {
         if ($t['task'] === $task_content) {
             $task_found = true;
+            header('HTTP/1.1 409 Conflict');
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Tarefa já existe.'
@@ -34,19 +53,21 @@
     }
 
     if (!$task_found) {
-        $tasks[] = [
-            'id' => random_int(1, 9999),
+        $new_task = [
+            'id' => uniqid(),
             'task' => $task_content,
             'favorited' => $task_fav,
-            'created_at' => date_create()->format('d/m/Y H:i:s')
+            'created_at' => date('Y-m-d H:i:s', strtotime('now'))
         ];
         
+        $tasks[] = $new_task;
         saveTasks($tasks);
         
+        header('HTTP/1.1 201 Created');
         echo json_encode([
             'status' => 'success',
             'message' => 'Tarefa cadastrada!',
-            'task' => $task_content
+            'task' => $new_task
         ]);
     }
 ?>
